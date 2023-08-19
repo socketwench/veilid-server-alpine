@@ -1,31 +1,38 @@
+# This first stage builds the binaries.
 FROM alpine:3.18
 MAINTAINER socketwench@deninet.com
-
-# The following RUNs can be combined to prevent multiple unncessary layers.
-# It's broken up now because this doesn't build yet.
 
 RUN apk -U upgrade &&\
     apk add --update --no-cache \
       capnproto \
-      protobuf-c && \
-    apk add --update --no-cache --virtual .build-deps \
+      protobuf-c \
       capnproto-dev \ 
       rust \
       git \
       protobuf-c-dev \ 
       cargo && \
     git clone --recurse-submodules https://gitlab.com/bbigras/veilid.git --branch alpine veilid-git && \
-    cargo build --features=rt-tokio --manifest-path=veilid-git/veilid-tools/Cargo.toml && \
-    cargo build --features=rt-tokio --manifest-path=veilid-git/veilid-cli/Cargo.toml && \
-    cp veilid-git/target/debug/libveilid_tools.so /usr/lib/libveilid_tools.so && \
-    cp veilid-git/target/debug/veilid-cli /usr/bin/veilid-cli && \
-    PROTOC=`which protoc-c` cargo build --features=rt-tokio --manifest-path=veilid-git/veilid-core/Cargo.toml && \
-    PROTOC=`which protoc-c` cargo build --features=rt-tokio --manifest-path=veilid-git/veilid-server/Cargo.toml && \
-    cp veilid-git/target/debug/libveilid_core.so /usr/lib/libveilid_core.so && \
-    cp veilid-git/target/debug/veilid-server /usr/bin/veilid-server && \
-    apk del .build-deps && \
-    rm -rf /tmp/* \
-           /veilid-git \
-           /var/cache/apk/*
+    PROTOC=`which protoc-c` cargo build --features=rt-tokio --manifest-path=veilid-git/Cargo.toml --release --bin veilid-server && \
+    PROTOC=`which protoc-c` cargo build --features=rt-tokio --manifest-path=veilid-git/Cargo.toml --release --bin veilid-cli
            
-# Set the USER, WORKDIR, COMMAND and ENTRYPOINT here.
+# This one provides the minimum necessary to run the server.
+FROM alpine:3.18
+RUN apk add libgcc && \
+    adduser -h /etc/veilid-server -D veilid && \
+    mkdir -p -m 755 /var/db/veilid-server && \
+    chown veilid:veilid -R /var/db/veilid-server && \
+    rm -rf /tmp/* /var/cache/apk/*
+
+COPY --from=0 /veilid-git/target/release/veilid-server /bin/veilid-server
+COPY --from=0 /veilid-git/target/release/veilid-cli /bin/veilid-cli
+COPY veilid-server.conf /etc/veilid-server/veilid-server.conf
+
+RUN chmod 755 /bin/veilid-server /bin/veilid-cli && \
+    chmod 644 /etc/veilid-server/veilid-server.conf
+
+USER veilid
+WORKDIR /etc/veilid-server
+EXPOSE 5150
+
+CMD ["/bin/veilid-server"]
+
