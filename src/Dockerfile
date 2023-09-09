@@ -11,7 +11,7 @@ RUN apk -U upgrade &&\
       git \
       protobuf-c-dev \ 
       cargo && \
-    git clone --recurse-submodules https://gitlab.com/bbigras/veilid.git --branch alpine veilid-git && \
+    git clone --recurse-submodules https://gitlab.com/ineiti/veilid.git --branch target_env_musl veilid-git && \
     PROTOC=`which protoc-c` cargo build --features=rt-tokio --manifest-path=veilid-git/Cargo.toml --release --bin veilid-server && \
     PROTOC=`which protoc-c` cargo build --features=rt-tokio --manifest-path=veilid-git/Cargo.toml --release --bin veilid-cli
            
